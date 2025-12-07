@@ -1,18 +1,18 @@
 import streamlit as st
 import yfinance as yf
 from datetime import datetime, timedelta
-from anthropic import Anthropic
 import os
 import time
+import google.generativeai as genai
 
 # ============================================
 # CALMTRADER - AI INVESTMENT COACH v2.0
-# With rate limiting and usage tracking
+# Using Google Gemini (Free API)
 # ============================================
 
 # Page configuration
 st.set_page_config(
-    page_title="CalmInvestor - Your AI Investment Coach",
+    page_title="CalmTrader - Your AI Investment Coach",
     page_icon="🧘",
     layout="wide"
 )
@@ -108,7 +108,7 @@ def check_usage_limit():
     return True
 
 def get_ai_advice(portfolio_context, user_question, stock_data=None):
-    """Get calm, rational advice from Claude"""
+    """Get calm, rational advice from Gemini AI"""
     
     # Check usage limit
     if not check_usage_limit():
@@ -120,15 +120,18 @@ def get_ai_advice(portfolio_context, user_question, stock_data=None):
         return f"⏳ Please wait {wait_time} seconds before asking another question."
     
     # Check for API key
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         return "⚠️ API key not configured. Please contact support."
     
     try:
-        client = Anthropic(api_key=api_key)
+        # Configure Gemini
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
         
         # Build context
-        context = f"User's Portfolio Context: {portfolio_context}\n\n"
+        context = f"{SYSTEM_PROMPT}\n\n"
+        context += f"User's Portfolio Context: {portfolio_context}\n\n"
         context += f"User's Question: {user_question}\n\n"
         
         if stock_data:
@@ -139,46 +142,27 @@ def get_ai_advice(portfolio_context, user_question, stock_data=None):
             context += f"- Week Range: ${stock_data['week_low']:.2f} - ${stock_data['week_high']:.2f}\n"
             context += f"- Sector: {stock_data['sector']}\n"
         
-        # Call Claude
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=500,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": context}
-            ]
-        )
+        # Call Gemini
+        response = model.generate_content(context)
         
         # Update tracking
         st.session_state.question_count += 1
         st.session_state.last_question_time = time.time()
         
-        return message.content[0].text
+        return response.text
         
     except Exception as e:
         return f"⚠️ Error getting advice: {str(e)}"
-
-def format_large_number(num):
-    """Convert large numbers to readable format"""
-    if isinstance(num, str) or num == 'N/A':
-        return num
-    
-    if num >= 1_000_000_000:
-        return f"${num / 1_000_000_000:.2f}B"
-    elif num >= 1_000_000:
-        return f"${num / 1_000_000:.2f}M"
-    else:
-        return f"${num:,.0f}"
 
 # ============================================
 # STREAMLIT UI
 # ============================================
 
 # Beta Banner
-st.info("🚀 **FREE BETA:** Testing phase. Limited to 3 questions per session. Premium coming soon!")
+st.info("🚀 **FREE BETA:** Testing phase. Limited to 3 questions per session. Your feedback helps improve this tool!")
 
 # Header
-st.title("🧘 CalmInvestor")
+st.title("🧘 CalmTrader")
 st.subheader("Your AI Investment Coach")
 st.markdown("Stop panic selling. Get calm, rational analysis of your investments.")
 
@@ -187,7 +171,7 @@ questions_remaining = FREE_QUESTIONS_PER_SESSION - st.session_state.question_cou
 if questions_remaining > 0:
     st.caption(f"💬 Questions remaining this session: {questions_remaining}")
 else:
-    st.warning("🚫 You've used all 3 free questions this session. Refresh the page to reset, or upgrade to Premium (coming soon!)")
+    st.warning("🚫 You've used all 3 free questions this session. Refresh the page to reset, or check back later!")
 
 st.divider()
 
@@ -221,14 +205,14 @@ with st.sidebar:
     
     # Feedback section
     st.markdown("### 💬 Feedback")
-    st.markdown("This is a beta. [Share feedback]https://forms.gle/zhSZMxeF4j8Gx7aE8 or report bugs.")
+    st.markdown("[Share your thoughts](https://forms.gle/yourformlink) • Report bugs: thecalmtrader@gmail.com")
 
 # Main area - Two tabs
 tab1, tab2 = st.tabs(["💬 Ask a Question", "📈 Check a Stock"])
 
 with tab1:
     st.header("Ask Your Investment Coach")
-    st.markdown("Feeling anxious about a position? Not sure if you should sell? Ask me.")
+    st.markdown("Feeling anxious about a position? Not sure what to do? Ask me.")
     
     user_question = st.text_area(
         "What's on your mind?",
@@ -254,9 +238,9 @@ with tab1:
                     st.success("Here's my take:")
                     st.markdown(advice)
                     
-                    # Show upgrade prompt if this was the last free question
+                    # Show feedback prompt
                     if st.session_state.question_count >= FREE_QUESTIONS_PER_SESSION:
-                        st.info("🎉 Want unlimited questions? Premium tier coming soon. [Join waitlist](#)")
+                        st.info("💭 Was this helpful? [Share feedback](https://forms.gle/yourformlink) to help improve CalmTrader!")
                 else:
                     st.warning(advice)
 
@@ -327,6 +311,6 @@ st.markdown("""
 <div style='text-align: center; color: gray;'>
     <p>Built by a 15-year-old investor who learned that staying calm beats reacting to headlines.</p>
     <p><small>Not financial advice. Always do your own research.</small></p>
-    <p><small>Questions? Feedback? Contact: thecalminvestor34@gmail.com</small></p>
+    <p><small>Questions? Feedback? Contact: thecalmtrader@gmail.com</small></p>
 </div>
 """, unsafe_allow_html=True)
