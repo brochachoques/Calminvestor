@@ -178,7 +178,7 @@ def format_large_number(num):
 st.info("🚀 **FREE BETA:** Testing phase. Limited to 3 questions per session. Premium coming soon!")
 
 # Header
-st.title("🧘 CalmTrader")
+st.title("🧘 CalmInvestor")
 st.subheader("Your AI Investment Coach")
 st.markdown("Stop panic selling. Get calm, rational analysis of your investments.")
 
