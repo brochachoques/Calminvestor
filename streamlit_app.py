@@ -221,7 +221,7 @@ with st.sidebar:
     
     # Feedback section
     st.markdown("### 💬 Feedback")
-    st.markdown("This is a beta. [Share feedback](https://forms.gle/yourform) or report bugs.")
+    st.markdown("This is a beta. [Share feedback]https://forms.gle/zhSZMxeF4j8Gx7aE8 or report bugs.")
 
 # Main area - Two tabs
 tab1, tab2 = st.tabs(["💬 Ask a Question", "📈 Check a Stock"])
@@ -327,6 +327,6 @@ st.markdown("""
 <div style='text-align: center; color: gray;'>
     <p>Built by a 15-year-old investor who learned that staying calm beats reacting to headlines.</p>
     <p><small>Not financial advice. Always do your own research.</small></p>
-    <p><small>Questions? Feedback? Contact: [your email or form]</small></p>
+    <p><small>Questions? Feedback? Contact: thecalminvestor34@gmail.com</small></p>
 </div>
 """, unsafe_allow_html=True)
