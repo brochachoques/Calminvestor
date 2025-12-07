@@ -12,7 +12,7 @@ import time
 
 # Page configuration
 st.set_page_config(
-    page_title="CalmTrader - Your AI Investment Coach",
+    page_title="CalmInvestor - Your AI Investment Coach",
     page_icon="🧘",
     layout="wide"
 )
