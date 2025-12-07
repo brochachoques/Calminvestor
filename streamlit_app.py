@@ -3,10 +3,11 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from anthropic import Anthropic
 import os
+import time
 
 # ============================================
-# CALMTRADER - AI INVESTMENT COACH
-# Helps investors stay calm during market volatility
+# CALMTRADER - AI INVESTMENT COACH v2.0
+# With rate limiting and usage tracking
 # ============================================
 
 # Page configuration
@@ -16,7 +17,25 @@ st.set_page_config(
     layout="wide"
 )
 
-# The secret sauce - your investment philosophy
+# ============================================
+# BETA SETTINGS & RATE LIMITING
+# ============================================
+
+# Initialize session state for tracking
+if 'question_count' not in st.session_state:
+    st.session_state.question_count = 0
+
+if 'last_question_time' not in st.session_state:
+    st.session_state.last_question_time = 0
+
+# Free tier limits
+FREE_QUESTIONS_PER_SESSION = 3
+COOLDOWN_SECONDS = 10
+
+# ============================================
+# SYSTEM PROMPT - Your Investment Philosophy
+# ============================================
+
 SYSTEM_PROMPT = """You are The Calm Investor, an AI investment coach designed to help long-term investors stay rational during market volatility.
 
 Your core philosophy:
@@ -39,6 +58,10 @@ NEVER say "buy" or "sell". Instead say "consider", "here's the framework", "ask 
 
 Always end with: "What was your original reason for investing? Has that changed?"
 """
+
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
 
 def get_stock_data(ticker, days=7):
     """Fetch recent stock data"""
@@ -69,13 +92,37 @@ def get_stock_data(ticker, days=7):
     except:
         return None
 
+def check_rate_limit():
+    """Check if user has hit rate limit"""
+    current_time = time.time()
+    time_since_last = current_time - st.session_state.last_question_time
+    
+    if time_since_last < COOLDOWN_SECONDS:
+        return False, int(COOLDOWN_SECONDS - time_since_last)
+    return True, 0
+
+def check_usage_limit():
+    """Check if user has exceeded free tier limit"""
+    if st.session_state.question_count >= FREE_QUESTIONS_PER_SESSION:
+        return False
+    return True
+
 def get_ai_advice(portfolio_context, user_question, stock_data=None):
     """Get calm, rational advice from Claude"""
+    
+    # Check usage limit
+    if not check_usage_limit():
+        return None
+    
+    # Check rate limit
+    can_proceed, wait_time = check_rate_limit()
+    if not can_proceed:
+        return f"⏳ Please wait {wait_time} seconds before asking another question."
     
     # Check for API key
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        return "⚠️ API key not configured. Set ANTHROPIC_API_KEY environment variable."
+        return "⚠️ API key not configured. Please contact support."
     
     try:
         client = Anthropic(api_key=api_key)
@@ -102,19 +149,45 @@ def get_ai_advice(portfolio_context, user_question, stock_data=None):
             ]
         )
         
+        # Update tracking
+        st.session_state.question_count += 1
+        st.session_state.last_question_time = time.time()
+        
         return message.content[0].text
         
     except Exception as e:
-        return f"Error getting advice: {str(e)}"
+        return f"⚠️ Error getting advice: {str(e)}"
+
+def format_large_number(num):
+    """Convert large numbers to readable format"""
+    if isinstance(num, str) or num == 'N/A':
+        return num
+    
+    if num >= 1_000_000_000:
+        return f"${num / 1_000_000_000:.2f}B"
+    elif num >= 1_000_000:
+        return f"${num / 1_000_000:.2f}M"
+    else:
+        return f"${num:,.0f}"
 
 # ============================================
 # STREAMLIT UI
 # ============================================
 
+# Beta Banner
+st.info("🚀 **FREE BETA:** Testing phase. Limited to 3 questions per session. Premium coming soon!")
+
 # Header
 st.title("🧘 CalmTrader")
 st.subheader("Your AI Investment Coach")
 st.markdown("Stop panic selling. Get calm, rational analysis of your investments.")
+
+# Usage counter
+questions_remaining = FREE_QUESTIONS_PER_SESSION - st.session_state.question_count
+if questions_remaining > 0:
+    st.caption(f"💬 Questions remaining this session: {questions_remaining}")
+else:
+    st.warning("🚫 You've used all 3 free questions this session. Refresh the page to reset, or upgrade to Premium (coming soon!)")
 
 st.divider()
 
@@ -143,6 +216,12 @@ with st.sidebar:
     - Market drops are normal (and opportunities)
     - Time in the market > Timing the market
     """)
+    
+    st.divider()
+    
+    # Feedback section
+    st.markdown("### 💬 Feedback")
+    st.markdown("This is a beta. [Share feedback](https://forms.gle/yourform) or report bugs.")
 
 # Main area - Two tabs
 tab1, tab2 = st.tabs(["💬 Ask a Question", "📈 Check a Stock"])
@@ -157,11 +236,11 @@ with tab1:
         height=100
     )
     
-    if st.button("Get Calm Advice", type="primary"):
+    if st.button("Get Calm Advice", type="primary", disabled=not check_usage_limit()):
         if not portfolio_input:
-            st.warning("Please tell me about your portfolio in the sidebar first!")
+            st.warning("⚠️ Please tell me about your portfolio in the sidebar first!")
         elif not user_question:
-            st.warning("Please ask a question!")
+            st.warning("⚠️ Please ask a question!")
         else:
             with st.spinner("Thinking..."):
                 # Build portfolio context
@@ -171,8 +250,15 @@ with tab1:
                 advice = get_ai_advice(context, user_question)
                 
                 # Display
-                st.success("Here's my take:")
-                st.markdown(advice)
+                if advice and not advice.startswith("⏳") and not advice.startswith("⚠️"):
+                    st.success("Here's my take:")
+                    st.markdown(advice)
+                    
+                    # Show upgrade prompt if this was the last free question
+                    if st.session_state.question_count >= FREE_QUESTIONS_PER_SESSION:
+                        st.info("🎉 Want unlimited questions? Premium tier coming soon. [Join waitlist](#)")
+                else:
+                    st.warning(advice)
 
 with tab2:
     st.header("Quick Stock Check")
@@ -186,7 +272,7 @@ with tab2:
     with col2:
         st.write("")  # Spacing
         st.write("")  # Spacing
-        check_button = st.button("Check Stock", type="primary")
+        check_button = st.button("Check Stock", type="primary", disabled=not check_usage_limit())
     
     if check_button and ticker:
         with st.spinner(f"Analyzing {ticker}..."):
@@ -194,7 +280,7 @@ with tab2:
             stock_data = get_stock_data(ticker)
             
             if not stock_data:
-                st.error(f"Couldn't find data for {ticker}. Check the ticker symbol.")
+                st.error(f"❌ Couldn't find data for {ticker}. Check the ticker symbol.")
             else:
                 # Display stock info
                 col1, col2, col3 = st.columns(3)
@@ -226,10 +312,14 @@ with tab2:
                     
                     with st.spinner("Getting AI analysis..."):
                         advice = get_ai_advice(context, question, stock_data)
-                        st.markdown("### 🤖 AI Analysis")
-                        st.info(advice)
+                        
+                        if advice and not advice.startswith("⏳") and not advice.startswith("⚠️"):
+                            st.markdown("### 🤖 AI Analysis")
+                            st.info(advice)
+                        else:
+                            st.warning(advice)
                 else:
-                    st.warning("Add your portfolio info in the sidebar to get personalized analysis!")
+                    st.warning("⚠️ Add your portfolio info in the sidebar to get personalized analysis!")
 
 # Footer
 st.divider()
@@ -237,5 +327,6 @@ st.markdown("""
 <div style='text-align: center; color: gray;'>
     <p>Built by a 15-year-old investor who learned that staying calm beats reacting to headlines.</p>
     <p><small>Not financial advice. Always do your own research.</small></p>
+    <p><small>Questions? Feedback? Contact: [your email or form]</small></p>
 </div>
 """, unsafe_allow_html=True)
