@@ -127,7 +127,7 @@ def get_ai_advice(portfolio_context, user_question, stock_data=None):
     try:
         # Configure Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Build context
         context = f"{SYSTEM_PROMPT}\n\n"
